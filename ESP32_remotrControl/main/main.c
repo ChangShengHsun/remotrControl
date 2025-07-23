@@ -12,9 +12,10 @@
 #include "esp_event.h"
 #include "nvs_flash.h"
 #include "esp_netif.h"
+#include "cJSON.h"
 
 #define SERVER_IP   "192.168.1.83"   // server IP
-#define SERVER_PORT 4000
+#define SERVER_PORT 5000
 
 static const char *TAG = "TCP_CLIENT"; // tag for esplog (you will see when you monitor)
 
@@ -50,12 +51,53 @@ void tcp_client_task(void *pvParameters) {
     send(sock, message, strlen(message), 0);
 
     // receive response from server
-    int len = recv(sock, rx_buffer, sizeof(rx_buffer) - 1, 0);
-    if (len < 0) {
-        ESP_LOGE(TAG, " recv failed: errno %d", errno);
-    } else {
-        rx_buffer[len] = 0; // null-terminate
-        ESP_LOGI(TAG, " Received from server: %s", rx_buffer);
+    while (1){
+        int len = recv(sock, rx_buffer, sizeof(rx_buffer) - 1, 0);
+        if (len < 0) {
+            ESP_LOGE(TAG, " recv failed: errno %d", errno);
+        } 
+        else if(len == 0){
+            ESP_LOGW(TAG, "Server closed")
+            break;
+        }
+        else {
+            rx_buffer[len] = 0; // null-terminate
+            ESP_LOGI(TAG, " Received from server: %s", rx_buffer);
+            // deal with the command
+            cJSON *root = cJSON_Parse(rx_buffer);
+            if(!root){
+                ESP_LOGE(TAG, "fail to parse json file")
+                return;
+            }
+            cJSON *type = cJSON_GetObjectItem(root, "type")
+            if(type && strcmp(type->valuestring, "command") == 0){
+                cJSON *args = cJSON_GetObjectItem(toor, "args")
+                if(args && cJON_IsArray(args)){
+                    int count = cJSON_GetArraySize(args);
+                    if(count >= 2){
+                        const char *cmd = cJSON_GetArrayItem(args, 1)->valuestring;
+
+                        if(strcmp(cmd, "play") == 0){
+                            //do play
+                        }
+                        else if(strcmp(cmd, "pause") == 0){
+                            //do pause
+                        }
+                        else{
+                            ESP_LOGW(TAG, "unsupported command");
+                        }
+                    }
+                    else{
+                        ESG_LOGW(TAG, "Not enough pvparameters")
+                    }
+                }
+                else {
+                    ESP_LOGW(TAG, "unsupported data type");
+                }
+
+            }
+            cJSON_Delete(root);
+        }
     }
 
     close(sock);
