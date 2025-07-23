@@ -1,3 +1,4 @@
 {
-    "idf.portWin": "COM8"
+    "idf.portWin": "COM8",
+    "cmake.sourceDirectory": "D:/ESP32project/remotrControl/ESP32_remotrControl"
 }
