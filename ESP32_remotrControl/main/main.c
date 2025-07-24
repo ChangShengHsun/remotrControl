@@ -57,7 +57,7 @@ void tcp_client_task(void *pvParameters) {
             ESP_LOGE(TAG, " recv failed: errno %d", errno);
         } 
         else if(len == 0){
-            ESP_LOGW(TAG, "Server closed")
+            ESP_LOGW(TAG, "Server closed");
             break;
         }
         else {
@@ -66,13 +66,13 @@ void tcp_client_task(void *pvParameters) {
             // deal with the command
             cJSON *root = cJSON_Parse(rx_buffer);
             if(!root){
-                ESP_LOGE(TAG, "fail to parse json file")
+                ESP_LOGE(TAG, "fail to parse json file");
                 return;
             }
-            cJSON *type = cJSON_GetObjectItem(root, "type")
+            cJSON *type = cJSON_GetObjectItem(root, "type");
             if(type && strcmp(type->valuestring, "command") == 0){
-                cJSON *args = cJSON_GetObjectItem(toor, "args")
-                if(args && cJON_IsArray(args)){
+                cJSON *args = cJSON_GetObjectItem(root, "args");
+                if(args && cJSON_IsArray(args)){
                     int count = cJSON_GetArraySize(args);
                     if(count >= 2){
                         const char *cmd = cJSON_GetArrayItem(args, 1)->valuestring;
@@ -88,7 +88,7 @@ void tcp_client_task(void *pvParameters) {
                         }
                     }
                     else{
-                        ESG_LOGW(TAG, "Not enough pvparameters")
+                        ESP_LOGW(TAG, "Not enough pvparameters");
                     }
                 }
                 else {

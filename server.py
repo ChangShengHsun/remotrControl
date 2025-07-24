@@ -1,19 +1,26 @@
 import socket
 import json
-#import threading
+import threading
 HOST = '192.168.1.83'
 PORT = 5000
+clients = []
+clients_lock = threading.Lock()
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)#socket.socket()
 server.bind((HOST, PORT))#.bind(IPaddress, port)
-
 server.listen(20) #start to listen, .listen(max amount clients in line)
 
-print("ready to connect")
-client, addr = server.accept() # accept a client
-data = client.recv(1024).decode()
-print(data) # print the message receive from the client, .recv(maximum bytes of receive data)
-#client.send('hello world'.encode()) # send hello world
+def receiveClient():
+    while True:
+        try:
+            print("ready to connect")
+            client, addr = server.accept() # accept a client
+            with clients_lock:
+                clients.append(client)
+        except Exception as e:
+            print(f"SERVER: Error {e}")
+            break
+
 
 def parse_input(user_input):
     #split user_input and divide cmd as well as args
@@ -56,6 +63,8 @@ def parse_input(user_input):
         "args": args
     }
 
+client_thread = threading.Thread(target = receiveClient, daemon = True)
+client_thread.start()
 
 while True:
     try:
@@ -69,15 +78,22 @@ while True:
         #turn it into json style
         if command:
             json_str = json.dumps(command) + '\n'
-            client.sendall(json_str.encode())
-            print("SERVER: send json")
+            with clients_lock:
+                for c in clients:
+                    try:
+                        c.sendall(json_str.encode())
+                        print("SERVER: send json")
+                    except Exception as e:
+                        print(f"SERVER: failed to send due to {e}")
 
     except KeyboardInterrupt:
         break
     except Exception as e:
-        print("SERVER: error {e}")
+        print(f"SERVER: error {e}")
         break
 
-client.close()
+with clients_lock:
+    for c in clients:
+        c.close()
 server.close()
 print("SERVER: finish connection")
