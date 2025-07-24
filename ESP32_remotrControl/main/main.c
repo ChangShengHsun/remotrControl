@@ -78,10 +78,10 @@ void tcp_client_task(void *pvParameters) {
                         const char *cmd = cJSON_GetArrayItem(args, 1)->valuestring;
 
                         if(strcmp(cmd, "play") == 0){
-                            //do play
+                            //TODO:do play
                         }
                         else if(strcmp(cmd, "pause") == 0){
-                            //do pause
+                            //TODO:do pause
                         }
                         else{
                             ESP_LOGW(TAG, "unsupported command");

@@ -35,6 +35,14 @@ wifi_config_t wifi_config = {
 ```
 ---
 ## Goal and specific history
-### one2one remoreControl
-### one2one withjson
+### one2one remoteControl
+In this version, server can send helloworld to the client(ESP32), and ESP32 will print it out through ESP-LOG.
+As a reminder, these are all one2one.
+### one2one with json
+In this version, through the package __json__, we can send json file to others, but all the behaviors on ESP32 are not handled. Right now, they can only print a message on the log without doing anything.
+
+(I haven't tested this version)
 ### one2multiple
+In this version, through the package __threading__, we can send json file to others. server.py has been updated, Thankfully, I don't need to adjust the main.c a lot. 
+
+(I haven't tested this version)
