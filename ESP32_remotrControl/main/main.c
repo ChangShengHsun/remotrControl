@@ -80,6 +80,18 @@ void tcp_client_task(void *pvParameters) {
             }
             cJSON *type = cJSON_GetObjectItem(root, "type");
             // "play" should be handled as a command under the "command" type below.
+            if(type && strcmp(type->valuestring, "sync") == 0){
+                // Perform time sync: send sync message with t1
+                int64_t t1 = esp_timer_get_time();
+                cJSON *sync_msg = cJSON_CreateObject();
+                cJSON_AddStringToObject(sync_msg, "type", "sync");
+                cJSON_AddNumberToObject(sync_msg, "t1", (double)t1);
+                char* sync_str = cJSON_PrintUnformatted(sync_msg);
+                send(sock, sync_str, strlen(sync_str), 0);
+                send(sock, "\n", 1, 0);
+                cJSON_Delete(sync_msg);
+                free(sync_str);
+            }
             else if(type && strcmp(type->valuestring, "command") == 0){
                 cJSON *args = cJSON_GetObjectItem(root, "args");
                 if(args && cJSON_IsArray(args)){
@@ -87,16 +99,16 @@ void tcp_client_task(void *pvParameters) {
                     if(count >= 3){
                         const char *cmd = cJSON_GetArrayItem(args, 1)->valuestring;
                         if(strcmp(cmd, "play") == 0){
-                            int64_t now = esp_timer_get_time() + offset;
+                            int64_t now = esp_timer_get_time() - offset;
                             // args[2] is play delay in microseconds as string
                             const char *delay_str = cJSON_GetArrayItem(args, 2)->valuestring;
                             int64_t delay_us = atoll(delay_str);
                             int64_t execute_at = now + delay_us;
                             ESP_LOGI(TAG, "PLAY: now=%lld, delay_us=%lld, execute_at=%lld", now, delay_us, execute_at);
-                            //TODO:do play
+                            //TODO:do play, please use delay_us to calculate the time to play
                         }
                         else if(strcmp(cmd, "pause") == 0){
-                            //TODO:do pause
+                            //TODO:do pause 
                         }
                         else{
                             ESP_LOGW(TAG, "unsupported command");
@@ -157,12 +169,6 @@ void app_main() {
     ESP_ERROR_CHECK(esp_wifi_start());
     ESP_LOGI(TAG, "Wi-Fi started");
 
-    ESP_ERROR_CHECK(esp_wifi_connect());
-
-    // after setting wifi, execute the tcp_client_task(hello world)
-    vTaskDelay(5000 / portTICK_PERIOD_MS);
-    xTaskCreate(tcp_client_task, "tcp_client", 4096, NULL, 5, NULL);
-}
     ESP_ERROR_CHECK(esp_wifi_connect());
 
     // after setting wifi, execute the tcp_client_task(hello world)

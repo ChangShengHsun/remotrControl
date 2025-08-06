@@ -44,11 +44,6 @@ def handle_client(client, addr):
         except Exception as e:
             print(f"SERVER: client {addr} error: {e}")
             break
-    with clients_lock:
-        if client in clients:
-            clients.remove(client)
-    client.close()
-    print(f"SERVER: client {addr} disconnected")
 
 def receiveClient():
     while True:
@@ -83,36 +78,27 @@ def parse_input(user_input):
         except ValueError:
             print("Invalid seconds value")
             return None
-        args = ["playerctl", "play", str(seconds * 1000)]  # milliseconds
-        return {
-            "type": "command",
-            "args": args,
-            "t_send": day_micro()
-        }
 
-    #deal with different command
-    if cmd == "play":
-        args = ["playerctl", cmd]
-        if "-d" in tokens:
-            idx = tokens.index("-d")
-            if idx + 1 < len(tokens):
-                args.append(tokens[idx+1])
-        elif "-s" in tokens:
-            idx = tokens.index("-s")
-            if idx + 1 < len(tokens):
+        # Inform clients to sync before play
+        sync_msg = {
+            "type": "sync"
+        }
+        sync_json = json.dumps(sync_msg) + '\n'
+        with clients_lock:
+            for c in clients:
                 try:
-                    args.append(str(int(tokens[idx+1])*1000))
-                except:
-                    print("Invalid time format")
-                    return None
+                    c.sendall(sync_json.encode())
+                except Exception as e:
+                    print(f"SERVER: failed to send sync due to {e}")
 
-        # Add t_send for play command
+        time.sleep(0.1)  # Wait 100ms for clients to process sync
+
+        args = ["playerctl", "play", str(seconds * 1000 * 1000)]  # microseconds
         return {
             "type": "command",
             "args": args,
             "t_send": day_micro()
         }
-
     elif cmd in ["pause", "stop", "restart", "quit"]:
         args = ["playerctl", cmd]
     elif cmd == "list":
