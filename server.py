@@ -15,35 +15,40 @@ def day_micro():
     return int(time.time() % 86400 * 1_000_000)
     #as a notice, if you test lightdance over midnight, you have to run it again.
 
-def time_sync(client, addr, retries = 3):
-    for attempt in range(retries):
-        success_count = 0
-        for i in range(5):# do time sync 5 times and get the average
-            try:
-                t_send = day_micro()
-                sync_msg = {"type": "sync",
-                            "t_send": t_send}
-                client.sendall((json.dumps(sync_msg) + '\n').encode()) 
-
-                client.settimeout(0.5)
-                data = client.recv(1024).decode()
-                response = json.loads(data)
-                if response.get("type") == "sync_ack":
-                    print(f"SERVER: got sync_ack #{i+1} from {addr}")
-                    success_count += 1
-                else:
-                    print((f"SERVER: unexpected response: {response}"))
-            except Exception as e:
-                print(f"SERVER: sync error with {addr}: {e}")
+def handle_client(client, addr):
+    buffer = ""
+    while True:
+        try:
+            data = client.recv(1024).decode()
+            if not data:
                 break
-        if success_count >= 5:
-            client.settimeout(None)
-            return True
-        else:
-            print(f"SERVER: retrying time sync with {addr} ({attempt+1}/{retries})")
-    print(f"SERVER: time sync with {addr} failed after {retries} attempts")
-    client.settimeout(None)
-    return False
+            buffer += data
+            while '\n' in buffer:
+                line, buffer = buffer.split('\n', 1)
+                try:
+                    msg = json.loads(line)
+                except Exception as e:
+                    print(f"SERVER: JSON decode error from {addr}: {e}")
+                    continue
+                if msg.get("type") == "sync":
+                    t_1 = msg.get("t_1")
+                    t_2 = day_micro()
+                    sync_resp = {
+                        "type": "sync_resp",
+                        "t_2": t_2,
+                        "t_3": day_micro()
+                    }
+                    client.sendall((json.dumps(sync_resp) + '\n').encode())
+                    print(f"SERVER: sync from {addr}, t_1={t_1}, t_2={t_2}, t_3={sync_resp['t_3']}")
+                # ...handle other message types if needed...
+        except Exception as e:
+            print(f"SERVER: client {addr} error: {e}")
+            break
+    with clients_lock:
+        if client in clients:
+            clients.remove(client)
+    client.close()
+    print(f"SERVER: client {addr} disconnected")
 
 def receiveClient():
     while True:
@@ -56,8 +61,8 @@ def receiveClient():
             print(f"SERVER: Error {e}")
             break
 
-        print(f"SERVER: start time sync with {addr}")
-        threading.Thread(target = time_sync, args = (client, addr), daemon = True).start()
+        print(f"SERVER: start client handler for {addr}")
+        threading.Thread(target=handle_client, args=(client, addr), daemon=True).start()
         
 
 def parse_input(user_input):
@@ -67,6 +72,23 @@ def parse_input(user_input):
         return None
     cmd = tokens[0]
     args = []
+
+    # Restrict play command to: play <seconds>
+    if cmd == "play":
+        if len(tokens) != 2:
+            print("Usage: play <seconds>")
+            return None
+        try:
+            seconds = int(tokens[1])
+        except ValueError:
+            print("Invalid seconds value")
+            return None
+        args = ["playerctl", "play", str(seconds * 1000)]  # milliseconds
+        return {
+            "type": "command",
+            "args": args,
+            "t_send": day_micro()
+        }
 
     #deal with different command
     if cmd == "play":
@@ -83,6 +105,13 @@ def parse_input(user_input):
                 except:
                     print("Invalid time format")
                     return None
+
+        # Add t_send for play command
+        return {
+            "type": "command",
+            "args": args,
+            "t_send": day_micro()
+        }
 
     elif cmd in ["pause", "stop", "restart", "quit"]:
         args = ["playerctl", cmd]

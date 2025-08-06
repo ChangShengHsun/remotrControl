@@ -13,10 +13,12 @@
 #include "nvs_flash.h"
 #include "esp_netif.h"
 #include "cJSON.h"
+#include "esp_timer.h"
 
 #define SERVER_IP   "192.168.1.83"   // server IP
 #define SERVER_PORT 5000
 
+int64_t offset = 0;
 static const char *TAG = "TCP_CLIENT"; // tag for esplog (you will see when you monitor)
 
 void tcp_client_task(void *pvParameters) {
@@ -46,9 +48,16 @@ void tcp_client_task(void *pvParameters) {
         return;
     }
 
-    // send a string server
-    char *message = "Hi! This is ESP32.\n";
-    send(sock, message, strlen(message), 0);
+    // send a sync message to server for time sync
+    int64_t t1 = esp_timer_get_time();
+    cJSON *sync_msg = cJSON_CreateObject();
+    cJSON_AddStringToObject(sync_msg, "type", "sync");
+    cJSON_AddNumberToObject(sync_msg, "t1", (double)t1);
+    char* sync_str = cJSON_PrintUnformatted(sync_msg);
+    send(sock, sync_str, strlen(sync_str), 0);
+    send(sock, "\n", 1, 0);
+    cJSON_Delete(sync_msg);
+    free(sync_str);
 
     // receive response from server
     while (1){
@@ -67,17 +76,23 @@ void tcp_client_task(void *pvParameters) {
             cJSON *root = cJSON_Parse(rx_buffer);
             if(!root){
                 ESP_LOGE(TAG, "fail to parse json file");
-                return;
+                continue;
             }
             cJSON *type = cJSON_GetObjectItem(root, "type");
-            if(type && strcmp(type->valuestring, "command") == 0){
+            // "play" should be handled as a command under the "command" type below.
+            else if(type && strcmp(type->valuestring, "command") == 0){
                 cJSON *args = cJSON_GetObjectItem(root, "args");
                 if(args && cJSON_IsArray(args)){
                     int count = cJSON_GetArraySize(args);
-                    if(count >= 2){
+                    if(count >= 3){
                         const char *cmd = cJSON_GetArrayItem(args, 1)->valuestring;
-
                         if(strcmp(cmd, "play") == 0){
+                            int64_t now = esp_timer_get_time() + offset;
+                            // args[2] is play delay in microseconds as string
+                            const char *delay_str = cJSON_GetArrayItem(args, 2)->valuestring;
+                            int64_t delay_us = atoll(delay_str);
+                            int64_t execute_at = now + delay_us;
+                            ESP_LOGI(TAG, "PLAY: now=%lld, delay_us=%lld, execute_at=%lld", now, delay_us, execute_at);
                             //TODO:do play
                         }
                         else if(strcmp(cmd, "pause") == 0){
@@ -94,7 +109,23 @@ void tcp_client_task(void *pvParameters) {
                 else {
                     ESP_LOGW(TAG, "unsupported data type");
                 }
-
+            }
+            else if(type && strcmp(type->valuestring, "sync_resp") == 0){
+                // Robust offset-based time sync logic
+                cJSON *t1_item = cJSON_GetObjectItem(root, "t1");
+                cJSON *t2_item = cJSON_GetObjectItem(root, "t2");
+                cJSON *t3_item = cJSON_GetObjectItem(root, "t3");
+                if (t1_item && t2_item && t3_item &&
+                    cJSON_IsNumber(t1_item) && cJSON_IsNumber(t2_item) && cJSON_IsNumber(t3_item)) {
+                    int64_t t1 = (int64_t)(t1_item->valuedouble);
+                    int64_t t2 = (int64_t)(t2_item->valuedouble);
+                    int64_t t3 = (int64_t)(t3_item->valuedouble);
+                    int64_t t4 = esp_timer_get_time();
+                    int64_t new_offset = ((t2 - t1) + (t3 - t4)) / 2;
+                    int64_t rtt = (t4 - t1) - (t3 - t2);
+                    offset = new_offset;
+                    ESP_LOGI(TAG, "SYNC_RESP: t1=%lld t2=%lld t3=%lld t4=%lld offset=%lld rtt=%lld", t1, t2, t3, t4, offset, rtt);
+                }
             }
             cJSON_Delete(root);
         }
@@ -126,6 +157,12 @@ void app_main() {
     ESP_ERROR_CHECK(esp_wifi_start());
     ESP_LOGI(TAG, "Wi-Fi started");
 
+    ESP_ERROR_CHECK(esp_wifi_connect());
+
+    // after setting wifi, execute the tcp_client_task(hello world)
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
+    xTaskCreate(tcp_client_task, "tcp_client", 4096, NULL, 5, NULL);
+}
     ESP_ERROR_CHECK(esp_wifi_connect());
 
     // after setting wifi, execute the tcp_client_task(hello world)
