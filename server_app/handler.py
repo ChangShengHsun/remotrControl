@@ -1,4 +1,3 @@
-import json
 from utils import day_micro
 
 # handle the time synchronization messages from clients
@@ -13,25 +12,35 @@ def handle_client(client, addr, clients, clients_lock):
             buffer += data
             while '\n' in buffer:
                 line, buffer = buffer.split('\n', 1)
-                try:
-                    msg = json.loads(line)
-                except Exception as e:
-                    print(f"SERVER: JSON decode error from {addr}: {e}")
+                line = line.strip()
+                if not line:
                     continue
-                if msg.get("type") == "sync":
-                    t_1 = msg.get("t_1")
+                parts = line.split()
+                cmd = parts[0]
+                if cmd == 'sync':
+                    # Parse optional -t_1 value if present
+                    t_1 = None
+                    i = 1
+                    while i < len(parts):
+                        if parts[i] == '-t_1' and i + 1 < len(parts):
+                            try:
+                                t_1 = int(parts[i+1])
+                            except ValueError:
+                                pass
+                            i += 2
+                        else:
+                            i += 1
                     t_2 = day_micro()
-                    sync_resp = {
-                        "type": "sync_resp",
-                        "t_2": t_2,
-                        "t_3": day_micro(),
-                        "t_1": t_1
-                    }
+                    t_3 = day_micro()
+                    resp = f"syncresp -t1 {t_1 if t_1 is not None else 0} -t2 {t_2} -t3 {t_3}\n"
                     try:
-                        client.sendall((json.dumps(sync_resp) + '\n').encode())
-                        print(f"SERVER: sync from {addr}, t_1={t_1}, t_2={t_2}, t_3={sync_resp['t_3']}")
+                        client.sendall(resp.encode())
+                        print(f"SERVER: sync from {addr}, t_1={t_1}, t_2={t_2}, t_3={t_3}")
                     except Exception as e:
-                        print(f"SERVER: failed sending sync_resp to {addr}: {e}")
+                        print(f"SERVER: failed sending syncresp to {addr}: {e}")
+                else:
+                    # Other commands ignored here
+                    pass
         except Exception as e:
             print(f"SERVER: client {addr} error: {e}")
             break

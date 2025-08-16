@@ -40,8 +40,8 @@ def broadcast_single(command_line: str, clients, clients_lock, target_ip: str):
         print(f"SERVER: no active client with IP {target_ip}")
 
 def send_play_with_sync(command_line, clients, clients_lock, delay: float = 0.05, target_ip = None):
-    """Send a sync JSON then the play command. If target_ip provided, only to that IP."""
-    sync_line = json.dumps({"type": "sync"}) + '\n'
+    """Send a sync request then the play command. If target_ip provided, only to that IP."""
+    sync_line = "sync\n"
     if target_ip:
         broadcast_single(sync_line, clients, clients_lock, target_ip)
         if delay > 0:

@@ -50,29 +50,44 @@ def parse_input(user_input):
             return None
         return cmd
     elif cmd == "parttest":
-        rgb = "255"
-        channel = "0"
+        # Defaults
+        channel = 0
+        r, g, b = 255, 255, 255
         i = 1
-        while i < len(tokens):
+        n = len(tokens)
+        while i < n:
             token = tokens[i]
-            if token == "-rgb":
-                if i + 1 < len(tokens):
-                    rgb = tokens[i + 1]
-                    i += 2
-                else:
-                    print("Missing parameter for -rgb flag in parttest command")
-                    return None
-            elif token == "-c":
-                if i + 1 < len(tokens):
-                    channel = tokens[i + 1]
-                    i += 2
-                else:
+            if token == "-c":
+                if i + 1 >= n:
                     print("Missing parameter for -c flag in parttest command")
                     return None
+                try: 
+                    channel = int(tokens[i + 1])
+                except ValueError:
+                    print("Channel must be integer")
+                    return None
+                i += 2
+            elif token == "-rgb":
+                if i + 3 >= n:
+                    print("Missing R G B values after -rgb (need three integers)")
+                    return None
+                try:
+                    r = int(tokens[i + 1])
+                    g = int(tokens[i + 2])
+                    b = int(tokens[i + 3])
+                except ValueError:
+                    print("RGB values must be integers")
+                    return None
+                # Optional range clamp
+                for val in (r, g, b):
+                    if not (0 <= val <= 255):
+                        print("RGB values must be 0..255")
+                        return None
+                i += 4
             else:
                 print(f"Invalid flag '{token}' in parttest command")
                 return None
-        return f"parttest -rgb{rgb} -c{channel}"
+        return f"parttest -c {channel} -rgb {r} {g} {b}"
     else:
         print("Not support")
         return None
