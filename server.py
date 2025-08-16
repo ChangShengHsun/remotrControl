@@ -11,42 +11,7 @@ server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)#socket.socket()
 server.bind((HOST, PORT))#.bind(IPaddress, port)
 server.listen(20) #start to listen, .listen(max amount clients in line)
 
-# returns the current time in microseconds since the start of the day
-def day_micro():
-    return int(time.time() % 86400 * 1_000_000)
-    #as a notice, if you test lightdance over midnight, you have to run it again.
 
-# handle the time synchronization messages from clients
-# This function will be called in a separate thread for each client connection.
-def handle_client(client, addr):
-    buffer = ""
-    while True:
-        try:
-            data = client.recv(1024).decode()
-            if not data:
-                break
-            buffer += data
-            while '\n' in buffer:
-                line, buffer = buffer.split('\n', 1)
-                try:
-                    msg = json.loads(line)
-                except Exception as e:
-                    print(f"SERVER: JSON decode error from {addr}: {e}")
-                    continue
-                if msg.get("type") == "sync":
-                    t_1 = msg.get("t_1")
-                    t_2 = day_micro()
-                    sync_resp = {
-                        "type": "sync_resp",
-                        "t_2": t_2,
-                        "t_3": day_micro()
-                    }
-                    client.sendall((json.dumps(sync_resp) + '\n').encode())
-                    print(f"SERVER: sync from {addr}, t_1={t_1}, t_2={t_2}, t_3={sync_resp['t_3']}")
-                # ...handle other message types if needed...
-        except Exception as e:
-            print(f"SERVER: client {addr} error: {e}")
-            break
 
 # Try to accept a client and start handle_client in a new thread.
 # This function runs in a loop to continuously accept new clients.
@@ -64,7 +29,6 @@ def receiveClient():
         print(f"SERVER: start client handler for {addr}")
         threading.Thread(target=handle_client, args=(client, addr), daemon=True).start()
         
-
 #
 def parse_input(user_input):
     tokens = user_input.split()
@@ -161,8 +125,18 @@ while True:
             break
         command = parse_input(user_input)
         if command:
-            # Send command as a string instead of JSON.
             command_line = command + '\n'
+            # If this is a play command, first trigger a sync broadcast
+            if command.startswith("play"):
+                sync_line = json.dumps({"type": "sync"}) + '\n'
+                with clients_lock:
+                    for c in clients:
+                        try:
+                            c.sendall(sync_line.encode())
+                        except Exception as e:
+                            print(f"SERVER: failed to send sync due to {e}")
+                # optional short delay to let clients react before command
+                time.sleep(0.05)
             with clients_lock:
                 for c in clients:
                     try:

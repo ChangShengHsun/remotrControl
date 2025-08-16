@@ -15,7 +15,7 @@
 #include "cJSON.h"
 #include "esp_timer.h"
 
-#define SERVER_IP   "192.168.137.1"   // server IP
+#define SERVER_IP   "192.168.137.155"   // server IP
 #define SERVER_PORT 5000
 int64_t offset = 0;
 static const char *TAG = "TCP_CLIENT"; // tag for esplog (you will see when you monitor)
@@ -97,7 +97,7 @@ void tcp_client_task(void *pvParameters) {
                         int64_t t_2 = (int64_t)(t_2_item->valuedouble);
                         int64_t t_3 = (int64_t)(t_3_item->valuedouble);
                         int64_t t_4 = esp_timer_get_time();
-                        int64_t new_offset = ((t_2 - t_1) + (t_3 - t_4)) / 2;
+                        int64_t new_o"play -ss%d -end%d -d%d -dd%d"ffset = ((t_2 - t_1) + (t_3 - t_4)) / 2;
                         int64_t rtt = (t_4 - t_1) - (t_3 - t_2);
                         offset = new_offset;
                         ESP_LOGI(TAG, "SYNC_RESP: t_1=%lld t_2=%lld t_3=%lld t_4=%lld offset=%lld rtt=%lld", t_1, t_2, t_3, t_4, offset, rtt);
@@ -120,7 +120,7 @@ void tcp_client_task(void *pvParameters) {
             if (strncmp(cmd, "play", 4) == 0) {
                 // play -ss<starttime> -end<endtime> -d<milisecond> -dd<delaydisplaytime>
                 int starttime = 0, endtime = 0, d = 0, dd = 0;
-                sscanf(cmd, "play -ss%d -end%d -d%d -dd%d", &starttime, &endtime, &d, &dd);
+                sscanf(cmd, , &starttime, &endtime, &d, &dd);
                 ESP_LOGI(TAG, "PLAY: starttime=%d, endtime=%d, d=%d, dd=%d", starttime, endtime, d, dd);
                 // TODO: implement play logic
             } else if (strcmp(cmd, "pause") == 0) {
